@@ -67,8 +67,14 @@ else:
 BASLIK = "Wmaracı Yukarı Taşıma"   # Telegram mesaj basligi (R10 kanaliyla karismaz)
 STATE = "wmaraci-state.json"
 LOG = "wmaraci-log.txt"
-HOLD_MIN = int(_get("WMARACI_BUMP_INTERVAL_MIN", "BUMP_INTERVAL_MIN", default="30", cast=int)) + 1  # 30+1 guvenlik
-RETRY_MIN = int(_get("WMARACI_RETRY_AFTER_MIN", "RETRY_AFTER_MIN", default="5", cast=int))          # hata -> 5 dk
+# wmaraci sunucu limiti: ilan basina 30 dk. Zamanlama (kullanici istegi):
+#   BASARILI tasima  -> sonraki tetik 31 dk sonra (30 limitin 1 dk uzeri guvenli)
+#   HATA/oturum/cf    -> sonraki tetik 2 dk sonra
+#   TOO_EARLY         -> cevaptaki kalan sure kadar sonra
+BUMP_INTERVAL_MIN = int(_get("WMARACI_BUMP_INTERVAL_MIN", "BUMP_INTERVAL_MIN", default="30", cast=int))
+GATE_MIN = BUMP_INTERVAL_MIN                 # client kapisi: bundan once istek atma (bos istek olmasin)
+NEXT_OK_MIN = BUMP_INTERVAL_MIN + 1          # basarili -> sonraki tetik (31 dk)
+RETRY_MIN = int(_get("WMARACI_RETRY_AFTER_MIN", "RETRY_AFTER_MIN", default="2", cast=int))   # hata -> 2 dk
 TEST = (len(sys.argv) > 1 and sys.argv[1].lower() == "test") \
     or os.environ.get("WMARACI_TEST", "").strip().lower() in ("1", "true", "yes")
 
@@ -235,7 +241,7 @@ def cron_self_schedule(minutes):
                 logla("cron: wmaraci-up isini bulamadim, planlama atlandi.")
                 return
             job_id = cand[0].get("jobId")
-        target = (datetime.now(TR) + timedelta(minutes=minutes + 1)).replace(second=0, microsecond=0)
+        target = (datetime.now(TR) + timedelta(minutes=minutes)).replace(second=0, microsecond=0)
         sched = {
             "timezone": "Europe/Istanbul",
             "hours": [target.hour], "mdays": [target.day],
@@ -270,17 +276,17 @@ def main():
     next_targets = []   # bir sonraki tetik icin her ilanin "kac dk sonra" degeri
 
     for tid in THREAD_IDS:
-        # Client-side kapi: son basarili tasimadan beri HOLD_MIN gecmediyse ATLA (bos
-        # istek atip Cloudflare'i yormamak icin). TEST modunda kapiyi atla.
+        # Client-side kapi: son basarili tasimadan beri GATE_MIN (30 dk) gecmediyse ATLA
+        # (bos istek atip Cloudflare'i yormamak icin). TEST modunda kapiyi atla.
         last = st.get(tid, {}).get("last_bump")
         if last and not TEST:
             try:
                 elapsed = (datetime.now(timezone.utc) - datetime.fromisoformat(last)).total_seconds() / 60
             except Exception:
                 elapsed = 9999
-            if elapsed < HOLD_MIN:
-                kalan = HOLD_MIN - elapsed
-                logla(f"#{tid}: vakti degil ({elapsed:.1f}/{HOLD_MIN} dk). Atlandi.")
+            if elapsed < GATE_MIN:
+                kalan = max(1, NEXT_OK_MIN - elapsed)
+                logla(f"#{tid}: vakti degil ({elapsed:.1f}/{GATE_MIN} dk). Atlandi.")
                 next_targets.append(kalan)
                 continue
 
@@ -296,12 +302,12 @@ def main():
 
         if durum == "SUCCESS":
             st.setdefault(tid, {})["last_bump"] = datetime.now(timezone.utc).isoformat()
-            next_targets.append(HOLD_MIN)
+            next_targets.append(NEXT_OK_MIN)        # basarili -> 31 dk sonra
         elif durum == "TOO_EARLY":
             km = kalan_dakika(ozet)
-            next_targets.append(km if km is not None else HOLD_MIN)
+            next_targets.append(km if km is not None else NEXT_OK_MIN)
         else:
-            next_targets.append(RETRY_MIN)   # hata/oturum/cloudflare -> kisa sure sonra tekrar
+            next_targets.append(RETRY_MIN)          # hata/oturum/cloudflare -> 2 dk sonra tekrar
 
     state_yaz(st)
 

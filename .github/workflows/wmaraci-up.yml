@@ -38,8 +38,8 @@ jobs:
           TG_BOT_TOKEN:      ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID:        ${{ secrets.TG_CHAT_ID }}
           WMARACI_THREAD_IDS: '714013'        # virgulle birden fazla: '714013,712916'
-          WMARACI_BUMP_INTERVAL_MIN: '30'     # wmaraci limiti: ilan basina 30 dk
-          WMARACI_RETRY_AFTER_MIN:   '5'      # hata/oturum -> 5 dk sonra tekrar
+          WMARACI_BUMP_INTERVAL_MIN: '30'     # wmaraci limiti: ilan basina 30 dk (basari -> +31 dk tetik)
+          WMARACI_RETRY_AFTER_MIN:   '2'      # hata/oturum/cloudflare -> 2 dk sonra tekrar
           WM_CRON_API_KEY:   ${{ secrets.WM_CRON_API_KEY }}   # cron-job.org API anahtari
           WM_CRON_JOB_ID:    ${{ vars.WM_CRON_JOB_ID }}       # cron-job.org 'wmaraci cron' is id (gizli degil)
           WMARACI_TEST:      ${{ github.event_name == 'workflow_dispatch' && inputs.test }}

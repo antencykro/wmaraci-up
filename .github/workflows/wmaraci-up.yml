@@ -1,0 +1,62 @@
+name: Wmaraci Yukari Tasima
+
+on:
+  # ASIL tetikleyici: disaridan (cron-job.org) repository_dispatch ile her ~30 dk.
+  # GitHub'in kendi 'schedule' cron'u sik araliklarda guvenilmez, o yuzden sadece yedek.
+  repository_dispatch:
+    types: [wmaraci-up]
+  schedule:
+    # Yedek: saat basi (zincir koparsa devreye girer). Asil is repository_dispatch + cron_self_schedule.
+    - cron: '23 * * * *'
+  workflow_dispatch:
+    inputs:
+      test:
+        description: 'Test modu (sonuc ne olursa Telegram at, sure beklemeden dene)'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write   # wmaraci-state.json'i repoya geri yazabilmek icin
+
+concurrency:
+  group: wmaraci-up
+  cancel-in-progress: false
+
+jobs:
+  up:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Ilani yukari tasi
+        env:
+          WMARACI_COOKIE:    ${{ secrets.WMARACI_COOKIE }}
+          TG_BOT_TOKEN:      ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_ID:        ${{ secrets.TG_CHAT_ID }}
+          WMARACI_THREAD_IDS: '714013'        # virgulle birden fazla: '714013,712916'
+          WMARACI_BUMP_INTERVAL_MIN: '30'     # wmaraci limiti: ilan basina 30 dk
+          WMARACI_RETRY_AFTER_MIN:   '5'      # hata/oturum -> 5 dk sonra tekrar
+          WM_CRON_API_KEY:   ${{ secrets.WM_CRON_API_KEY }}   # cron-job.org API anahtari
+          WM_CRON_JOB_ID:    ${{ vars.WM_CRON_JOB_ID }}       # cron-job.org 'wmaraci cron' is id (gizli degil)
+          WMARACI_TEST:      ${{ github.event_name == 'workflow_dispatch' && inputs.test }}
+        run: python wmaraci_yukari.py
+
+      - name: Durumu kaydet (sadece degistiyse)
+        if: always()
+        run: |
+          if [ -n "$(git status --porcelain wmaraci-state.json)" ]; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add wmaraci-state.json
+            git commit -m "state: tasima kaydi [skip ci]"
+            for i in 1 2 3; do
+              git pull --rebase --autostash && git push && break
+              echo "push tekrar deneniyor ($i)..."; sleep 3
+            done
+          else
+            echo "Durum degismedi, commit yok."
+          fi

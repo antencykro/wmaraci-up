@@ -1,0 +1,5 @@
+# Yerel ayar dosyasi (cookie + token icerir) - ASLA repoya girmesin
+config_wmaraci.py
+wmaraci-log.txt
+__pycache__/
+*.pyc

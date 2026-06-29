@@ -324,6 +324,7 @@ def main():
     ikon = {"SUCCESS": "✅", "TOO_EARLY": "⏳", "CLOUDFLARE": "🚫",
             "AUTH": "🔑", "UNKNOWN": "⚠️", "ERROR": "❌"}
     next_targets = []   # bir sonraki tetik icin her ilanin "kac dk sonra" degeri
+    did_bump = False     # bu calismada gercek bir SUCCESS oldu mu (cron API'yi sadece o zaman cagir)
 
     for tid in THREAD_IDS:
         # Client-side kapi: son basarili tasimadan beri GATE_MIN (30 dk) gecmediyse ATLA
@@ -361,6 +362,7 @@ def main():
             telegram(tg_msg(ikon.get(durum, "❓"), tid, ozet))
 
         if durum == "SUCCESS":
+            did_bump = True
             st.setdefault(tid, {})["last_bump"] = datetime.now(timezone.utc).isoformat()
             next_targets.append(NEXT_OK_MIN)        # basarili -> 31 dk sonra
         elif durum == "TOO_EARLY":
@@ -371,10 +373,15 @@ def main():
 
     state_yaz(st)
 
-    # En yakin uygun ilana gore cron-job.org'u tek-seferlik kur (kota dostu).
-    nxt = max(1, int(min(next_targets))) if next_targets else HOLD_MIN
-    cron_self_schedule(nxt)
-    logla(f"Sonraki tetik ~{nxt} dk sonra ayarlandi (en yakin ilan).")
+    # cron-job.org'u SADECE gercek bir tasima olduysa (SUCCESS) tek-seferlik kur.
+    # Boylece API'yi her calismada degil ~30 dk'da bir cagiririz (429 kotasini korur).
+    # Asil guvenilir tetik artik GitHub'in 15 dk'lik schedule'i; bu sadece bonus hassasiyet.
+    if did_bump:
+        nxt = max(1, int(min(next_targets)))
+        cron_self_schedule(nxt)
+        logla(f"Sonraki bonus tetik ~{nxt} dk sonra ayarlandi (en yakin ilan).")
+    else:
+        logla("Bu calismada tasima yok; cron API cagrilmadi (GitHub 15 dk schedule yeterli).")
 
 
 if __name__ == "__main__":

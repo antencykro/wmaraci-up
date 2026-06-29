@@ -6,8 +6,10 @@ on:
   repository_dispatch:
     types: [wmaraci-up]
   schedule:
-    # Yedek: saat basi (zincir koparsa devreye girer). Asil is repository_dispatch + cron_self_schedule.
-    - cron: '23 * * * *'
+    # ASIL guvenilir tetik: her 15 dk'da bir. Ilan limiti 30 dk oldugu icin script'teki
+    # GATE (30 dk) fazla bump'i engeller; GitHub bazi calismalari atlasa bile her 30 dk
+    # penceresi yakalanir. cron-job.org (repository_dispatch) artik sadece bonus hassasiyet.
+    - cron: '*/15 * * * *'
   workflow_dispatch:
     inputs:
       test:

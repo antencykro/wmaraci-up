@@ -373,15 +373,12 @@ def main():
 
     state_yaz(st)
 
-    # cron-job.org'u SADECE gercek bir tasima olduysa (SUCCESS) tek-seferlik kur.
-    # Boylece API'yi her calismada degil ~30 dk'da bir cagiririz (429 kotasini korur).
-    # Asil guvenilir tetik artik GitHub'in 15 dk'lik schedule'i; bu sadece bonus hassasiyet.
-    if did_bump:
-        nxt = max(1, int(min(next_targets)))
-        cron_self_schedule(nxt)
-        logla(f"Sonraki bonus tetik ~{nxt} dk sonra ayarlandi (en yakin ilan).")
-    else:
-        logla("Bu calismada tasima yok; cron API cagrilmadi (GitHub 15 dk schedule yeterli).")
+    # NOT (2026-06-29): cron-job.org self-scheduling KALDIRILDI. Sebep: her calismada
+    # API'ye yazmak hesabin API kotasini yaktiriyordu (HTTP 429) -> tetik zinciri oluyordu.
+    # Yeni mimari: cron-job.org isi (#7942306) SABIT takvimde (her 30 dk) repository_dispatch
+    # atar; script API'yi HIC cagirmaz, dolayisiyla kota patlamaz, sabit takvim ezilmez.
+    # (cron_self_schedule fonksiyonu duruyor ama artik cagrilmiyor.)
+    _ = did_bump  # bilgi amacli; ayri bir islem yok
 
 
 if __name__ == "__main__":

@@ -79,6 +79,11 @@ TEST = (len(sys.argv) > 1 and sys.argv[1].lower() == "test") \
     or os.environ.get("WMARACI_TEST", "").strip().lower() in ("1", "true", "yes")
 
 COOKIE = _get("WMARACI_COOKIE", "COOKIE", default="")
+# Oto yeniden-giris: cookie dusunce telefon+sifre ile login() taze cookie alir (captcha/SMS yok).
+# DIKKAT: wmaraci 'email' alanina TELEFON bekler (telefonla giris). Dogru no: 5550404913.
+LOGIN_PHONE = _get("WMARACI_PHONE", "LOGIN_PHONE", default="") \
+    or _get("WMARACI_EMAIL", "LOGIN_EMAIL", default="")
+LOGIN_PASSWORD = _get("WMARACI_PASSWORD", "LOGIN_PASSWORD", default="")
 USER_AGENT = _get("WMARACI_UA", "USER_AGENT", default=_DEFAULT_UA)
 TG_TOKEN = _get("TG_BOT_TOKEN", "TELEGRAM_BOT_TOKEN", default="")
 TG_CHAT = _get("TG_CHAT_ID", "TELEGRAM_CHAT_ID", default="")
@@ -136,6 +141,51 @@ def state_yaz(d):
             json.dump(d, f, ensure_ascii=False, indent=2)
     except Exception as e:
         logla(f"State yazilamadi: {e}")
+
+
+# ---- Oto yeniden-giris (cookie dusunce telefon+sifre ile) ----
+def login():
+    """Telefon+sifre ile /api/auth/login -> taze cookie string (PHPSESSID + loginHash) veya None.
+    wmaraci 'email' alanina TELEFON bekler; rememberme=true loginHash'i kalici yapar (captcha/SMS yok)."""
+    if not LOGIN_PHONE or not LOGIN_PASSWORD:
+        return None
+    import http.cookiejar
+    body = json.dumps({"email": LOGIN_PHONE, "password": LOGIN_PASSWORD,
+                       "rememberme": True}, ensure_ascii=False).encode()
+    jar = http.cookiejar.CookieJar()
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+    req = urllib.request.Request(SITE + "/api/auth/login", data=body, method="POST", headers={
+        "User-Agent": USER_AGENT, "Content-Type": "text/plain;charset=UTF-8",
+        "Accept": "*/*", "Origin": SITE, "Referer": SITE + "/"})
+    try:
+        with opener.open(req, timeout=40) as r:
+            text = r.read().decode("utf-8", "replace")
+    except Exception as e:
+        logla(f"login baglanti hatasi: {e}")
+        return None
+    try:
+        data = json.loads(text)
+    except Exception:
+        data = {}
+    if not (isinstance(data, dict) and data.get("status") == "success"):
+        logla(f"login basarisiz: {text[:160]}")
+        return None
+    names = {c.name for c in jar}
+    if "PHPSESSID" not in names or not any("login" in n.lower() for n in names):
+        logla(f"login uyari: cookie eksik olabilir ({','.join(sorted(names)) or 'bos'})")
+    cookie = "; ".join(f"{c.name}={c.value}" for c in jar)
+    return cookie or None
+
+
+def relogin():
+    """Global COOKIE'yi taze oturumla degistirir. Basarida True."""
+    global COOKIE
+    c = login()
+    if c:
+        COOKIE = c
+        logla("Oturum yenilendi (telefon+sifre -> taze cookie).")
+        return True
+    return False
 
 
 # ---- wmaraci moveUpThread istegi ----
@@ -292,6 +342,16 @@ def main():
 
         durum, ozet = bump(tid)
         logla(f"#{tid}: {durum} - {ozet}")
+
+        # Oto yeniden-giris: oturum dustuyse (AUTH) telefon+sifre ile taze cookie alip 1 kez tekrar dene.
+        # relogin global COOKIE'yi gunceller -> sonraki ilanlar da yeni cookie'yi kullanir.
+        if durum == "AUTH" and LOGIN_PHONE and LOGIN_PASSWORD:
+            logla(f"#{tid}: oturum dustu, yeniden giris deneniyor...")
+            if relogin():
+                durum, ozet = bump(tid)
+                logla(f"#{tid}: yeniden giris sonrasi -> {durum} - {ozet}")
+            else:
+                ozet = f"{ozet} (oto yeniden-giris BASARISIZ — telefon/sifre secret'i kontrol et)"
 
         bildir = TEST
         if durum == "SUCCESS" and NOTIFY_SUCCESS: bildir = True

@@ -35,6 +35,8 @@ jobs:
       - name: Ilani yukari tasi
         env:
           WMARACI_COOKIE:    ${{ secrets.WMARACI_COOKIE }}
+          WMARACI_PHONE:     ${{ secrets.WMARACI_PHONE }}      # oto yeniden-giris (cookie dusunce)
+          WMARACI_PASSWORD:  ${{ secrets.WMARACI_PASSWORD }}   # 'email' alanina TELEFON gider (5550404913)
           TG_BOT_TOKEN:      ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID:        ${{ secrets.TG_CHAT_ID }}
           WMARACI_THREAD_IDS: '714013'        # virgulle birden fazla: '714013,712916'

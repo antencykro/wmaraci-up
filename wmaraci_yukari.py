@@ -80,6 +80,9 @@ RETRY_MIN = int(_get("WMARACI_RETRY_AFTER_MIN", "RETRY_AFTER_MIN", default="5", 
 # yakmamak icin uyku yok. 0 = retry kapali (sadece bir sonraki 30 dk'lik tetikte tekrar denenir).
 MAX_RETRIES = int(_get("WMARACI_MAX_RETRIES", "MAX_RETRIES", default="1", cast=int))
 _TRANSIENT = ("CLOUDFLARE", "ERROR")   # bunlarda 5 dk bekleyip tekrar dene (gecici olabilir)
+# Tetik 30 dk penceresinden en fazla bu kadar ONCE gelirse, atlamak yerine kalani is icinde
+# bekle (pencere acilinca tasi). Tetik genelde saniyeler once gelir; 4 dk fazlasiyla yeter.
+GATE_WAIT_MAX = int(_get("WMARACI_GATE_WAIT_MAX_MIN", "GATE_WAIT_MAX_MIN", default="4", cast=int))
 TEST = (len(sys.argv) > 1 and sys.argv[1].lower() == "test") \
     or os.environ.get("WMARACI_TEST", "").strip().lower() in ("1", "true", "yes")
 
@@ -341,10 +344,21 @@ def main():
             except Exception:
                 elapsed = 9999
             if elapsed < GATE_MIN:
-                kalan = max(1, NEXT_OK_MIN - elapsed)
-                logla(f"#{tid}: vakti degil ({elapsed:.1f}/{GATE_MIN} dk). Atlandi.")
-                next_targets.append(kalan)
-                continue
+                remaining = GATE_MIN - elapsed          # 30 dk penceresinin acilmasina kalan
+                # KUCUK kalan (tetik pencereden birkac sn/dk once geldi): ATLAMA — o kadar bekle,
+                # pencere acilir acilmaz tasi. Bu olmadan 30 dk'lik tetik "29.x/30, atlandi" deyip
+                # bir sonraki tetige birakiyor -> ilan fiilen SAATTE BIR tasiniyordu (kanitli hata).
+                # Boylece cron-job.org */5 sagana gerekmez; tek 30 dk'lik tetik yeter (kota dostu).
+                if remaining <= GATE_WAIT_MAX:
+                    wait_s = int(remaining * 60) + 20   # +20 sn: sunucu limitinin guvenli ustu
+                    logla(f"#{tid}: pencereye {remaining:.1f} dk var, {wait_s} sn beklenip tasinacak...")
+                    time.sleep(wait_s)
+                    # bekleme bitti -> asagidaki bump denemesine dus
+                else:
+                    kalan = max(1, NEXT_OK_MIN - elapsed)
+                    logla(f"#{tid}: vakti degil ({elapsed:.1f}/{GATE_MIN} dk). Atlandi.")
+                    next_targets.append(kalan)
+                    continue
 
         # Bir ilan icin: gerekirse GECICI hatada RETRY_MIN dk bekleyip MAX_RETRIES kez daha dene.
         # (TEST modunda uyku yok, tek deneme.) Kalici hatalarda (AUTH) uyku yok.

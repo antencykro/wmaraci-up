@@ -88,7 +88,7 @@ TEST = (len(sys.argv) > 1 and sys.argv[1].lower() == "test") \
 
 COOKIE = _get("WMARACI_COOKIE", "COOKIE", default="")
 # Oto yeniden-giris: cookie dusunce telefon+sifre ile login() taze cookie alir (captcha/SMS yok).
-# DIKKAT: wmaraci 'email' alanina TELEFON bekler (telefonla giris). Dogru no: 5550404913.
+# DIKKAT: wmaraci 'email' alanina TELEFON bekler (telefonla giris). No secret'ta (WMARACI_PHONE).
 LOGIN_PHONE = _get("WMARACI_PHONE", "LOGIN_PHONE", default="") \
     or _get("WMARACI_EMAIL", "LOGIN_EMAIL", default="")
 LOGIN_PASSWORD = _get("WMARACI_PASSWORD", "LOGIN_PASSWORD", default="")

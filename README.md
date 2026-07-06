@@ -22,9 +22,9 @@ Bu klasörü yeni bir **özel** GitHub repo'suna pushla (örn. `KULLANICI/wmarac
 | Secret | Değer |
 |---|---|
 | `WMARACI_COOKIE` | wmaraci giriş çerezi (en az `PHPSESSID` + `loginHash`) — opsiyonel hızlı yol; düşerse aşağıdaki telefon/şifre ile **oto yenilenir** |
-| `WMARACI_PHONE` | wmaraci giriş **telefonu** (oto yeniden-giriş için; `5550404913`). NOT: wmaraci `email` alanına telefon bekler |
+| `WMARACI_PHONE` | wmaraci giriş **telefonu** (oto yeniden-giriş için). NOT: wmaraci `email` alanına telefon bekler |
 | `WMARACI_PASSWORD` | wmaraci giriş şifresi (oto yeniden-giriş için) |
-| `TG_BOT_TOKEN` | `8745193088:AAH...` (R10 ile aynı bot) |
+| `TG_BOT_TOKEN` | Telegram bot token'ı (R10 ile aynı bot) |
 | `TG_CHAT_ID` | `-1004309378445` (R10 kanalı; paylaşılıyor) |
 | `WM_CRON_API_KEY` | cron-job.org → Settings → API anahtarı |
 

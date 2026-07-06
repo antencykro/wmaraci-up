@@ -13,7 +13,7 @@
 #   python wmaraci_yukari.py          -> normal (zamanlayici/Actions boyle cagirir)
 #   python wmaraci_yukari.py test     -> test: sonuc ne olursa Telegram'a yaz, sure bekleme
 
-import os, sys, io, json, gzip, re, random
+import os, sys, io, json, gzip, re, random, time
 import urllib.request, urllib.parse, urllib.error
 from datetime import datetime, timezone, timedelta
 
@@ -74,7 +74,12 @@ LOG = "wmaraci-log.txt"
 BUMP_INTERVAL_MIN = int(_get("WMARACI_BUMP_INTERVAL_MIN", "BUMP_INTERVAL_MIN", default="30", cast=int))
 GATE_MIN = BUMP_INTERVAL_MIN                 # client kapisi: bundan once istek atma (bos istek olmasin)
 NEXT_OK_MIN = BUMP_INTERVAL_MIN + 1          # basarili -> sonraki tetik (31 dk)
-RETRY_MIN = int(_get("WMARACI_RETRY_AFTER_MIN", "RETRY_AFTER_MIN", default="2", cast=int))   # hata -> 2 dk
+RETRY_MIN = int(_get("WMARACI_RETRY_AFTER_MIN", "RETRY_AFTER_MIN", default="5", cast=int))   # gecici hata -> 5 dk sonra tekrar
+# GECICI hata (Cloudflare/baglanti) olursa AYNI is icinde RETRY_MIN dk bekleyip kac kez daha
+# denensin. Kalici hata (AUTH/oturum) beklemez -> zaten aninda relogin denenir; bosuna dakika
+# yakmamak icin uyku yok. 0 = retry kapali (sadece bir sonraki 30 dk'lik tetikte tekrar denenir).
+MAX_RETRIES = int(_get("WMARACI_MAX_RETRIES", "MAX_RETRIES", default="1", cast=int))
+_TRANSIENT = ("CLOUDFLARE", "ERROR")   # bunlarda 5 dk bekleyip tekrar dene (gecici olabilir)
 TEST = (len(sys.argv) > 1 and sys.argv[1].lower() == "test") \
     or os.environ.get("WMARACI_TEST", "").strip().lower() in ("1", "true", "yes")
 
@@ -341,18 +346,30 @@ def main():
                 next_targets.append(kalan)
                 continue
 
-        durum, ozet = bump(tid)
-        logla(f"#{tid}: {durum} - {ozet}")
+        # Bir ilan icin: gerekirse GECICI hatada RETRY_MIN dk bekleyip MAX_RETRIES kez daha dene.
+        # (TEST modunda uyku yok, tek deneme.) Kalici hatalarda (AUTH) uyku yok.
+        durum = ozet = None
+        for deneme in range(MAX_RETRIES + 1):
+            durum, ozet = bump(tid)
+            logla(f"#{tid}: {durum} - {ozet}")
 
-        # Oto yeniden-giris: oturum dustuyse (AUTH) telefon+sifre ile taze cookie alip 1 kez tekrar dene.
-        # relogin global COOKIE'yi gunceller -> sonraki ilanlar da yeni cookie'yi kullanir.
-        if durum == "AUTH" and LOGIN_PHONE and LOGIN_PASSWORD:
-            logla(f"#{tid}: oturum dustu, yeniden giris deneniyor...")
-            if relogin():
-                durum, ozet = bump(tid)
-                logla(f"#{tid}: yeniden giris sonrasi -> {durum} - {ozet}")
-            else:
-                ozet = f"{ozet} (oto yeniden-giris BASARISIZ — telefon/sifre secret'i kontrol et)"
+            # Oto yeniden-giris: oturum dustuyse (AUTH) telefon+sifre ile taze cookie alip 1 kez tekrar dene.
+            # relogin global COOKIE'yi gunceller -> sonraki ilanlar da yeni cookie'yi kullanir.
+            if durum == "AUTH" and LOGIN_PHONE and LOGIN_PASSWORD:
+                logla(f"#{tid}: oturum dustu, yeniden giris deneniyor...")
+                if relogin():
+                    durum, ozet = bump(tid)
+                    logla(f"#{tid}: yeniden giris sonrasi -> {durum} - {ozet}")
+                else:
+                    ozet = f"{ozet} (oto yeniden-giris BASARISIZ — telefon/sifre secret'i kontrol et)"
+
+            # Sadece GECICI hatada, deneme hakki kaldiysa ve TEST degilse: 5 dk bekleyip tekrar dene.
+            if durum in _TRANSIENT and deneme < MAX_RETRIES and not TEST:
+                logla(f"#{tid}: gecici hata, {RETRY_MIN} dk beklenip tekrar denenecek "
+                      f"({deneme + 1}/{MAX_RETRIES})...")
+                time.sleep(RETRY_MIN * 60)
+                continue
+            break
 
         bildir = TEST
         if durum == "SUCCESS" and NOTIFY_SUCCESS: bildir = True

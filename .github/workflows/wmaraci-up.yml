@@ -1,15 +1,13 @@
 name: Wmaraci Yukari Tasima
 
 on:
-  # ASIL tetikleyici: disaridan (cron-job.org) repository_dispatch ile her ~30 dk.
-  # GitHub'in kendi 'schedule' cron'u sik araliklarda guvenilmez, o yuzden sadece yedek.
-  repository_dispatch:
-    types: [wmaraci-up]
+  # TEK tetikleyici: GitHub'in kendi 'schedule' cron'u, her 30 dk'da bir.
+  # Ilan limiti 30 dk oldugu icin daha sik calismak bosa dakika yakiyordu (2000 dk/ay
+  # kota). repository_dispatch (cron-job.org) KALDIRILDI: cift tetik = cift dakika idi;
+  # artik cron-job.org tetiklese bile eslesen trigger yok, GitHub yok sayar (0 dakika).
+  # Gecici hata olursa retry, ayni is icinde 5 dk bekleyip tekrar denenir (script icinde).
   schedule:
-    # ASIL guvenilir tetik: her 15 dk'da bir. Ilan limiti 30 dk oldugu icin script'teki
-    # GATE (30 dk) fazla bump'i engeller; GitHub bazi calismalari atlasa bile her 30 dk
-    # penceresi yakalanir. cron-job.org (repository_dispatch) artik sadece bonus hassasiyet.
-    - cron: '*/15 * * * *'
+    - cron: '*/30 * * * *'
   workflow_dispatch:
     inputs:
       test:
@@ -30,9 +28,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
+      # setup-python KALDIRILDI: script tamamen standart kutuphane (urllib/json/gzip),
+      # ubuntu-latest'te hazir gelen python3 yeterli. Her kosuyu ~30 sn kisaltir (kota dostu).
 
       - name: Ilani yukari tasi
         env:
@@ -43,11 +40,10 @@ jobs:
           TG_CHAT_ID:        ${{ secrets.TG_CHAT_ID }}
           WMARACI_THREAD_IDS: '714013'        # virgulle birden fazla: '714013,712916'
           WMARACI_BUMP_INTERVAL_MIN: '30'     # wmaraci limiti: ilan basina 30 dk (basari -> +31 dk tetik)
-          WMARACI_RETRY_AFTER_MIN:   '2'      # hata/oturum/cloudflare -> 2 dk sonra tekrar
-          WM_CRON_API_KEY:   ${{ secrets.WM_CRON_API_KEY }}   # cron-job.org API anahtari
-          WM_CRON_JOB_ID:    ${{ vars.WM_CRON_JOB_ID }}       # cron-job.org 'wmaraci cron' is id (gizli degil)
+          WMARACI_RETRY_AFTER_MIN:   '5'      # GECICI hata (cloudflare/baglanti) -> ayni is icinde 5 dk sonra tekrar
+          WMARACI_MAX_RETRIES:       '1'      # gecici hatada kac kez daha denensin (0 = kapali). Kalici (AUTH) hata beklemez.
           WMARACI_TEST:      ${{ github.event_name == 'workflow_dispatch' && inputs.test }}
-        run: python wmaraci_yukari.py
+        run: python3 wmaraci_yukari.py
 
       - name: Durumu kaydet (sadece degistiyse)
         if: always()

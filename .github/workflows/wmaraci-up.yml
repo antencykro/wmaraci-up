@@ -1,11 +1,14 @@
 name: Wmaraci Yukari Tasima
 
 on:
-  # TEK tetikleyici: GitHub'in kendi 'schedule' cron'u, her 30 dk'da bir.
-  # Ilan limiti 30 dk oldugu icin daha sik calismak bosa dakika yakiyordu (2000 dk/ay
-  # kota). repository_dispatch (cron-job.org) KALDIRILDI: cift tetik = cift dakika idi;
-  # artik cron-job.org tetiklese bile eslesen trigger yok, GitHub yok sayar (0 dakika).
-  # Gecici hata olursa retry, ayni is icinde 5 dk bekleyip tekrar denenir (script icinde).
+  # ASIL tetikleyici: cron-job.org (#7942306, */5 dk) -> repository_dispatch [wmaraci-up].
+  # GERI EKLENDI (2026-07-07): tek basina GitHub 'schedule' guvenilmez, 2-4 saatte bir
+  # calisiyordu (ilan 30 dk yerine saatlerce bekliyordu). Repo artik PUBLIC = sinirsiz
+  # bedava dakika, dolayisiyla eski kota derdi yok; cift tetik sorun degil.
+  # GATE (30 dk) fazla bump'i engeller: */5 ping gelse de 30 dk dolmadan sunucuya dokunmaz.
+  repository_dispatch:
+    types: [wmaraci-up]
+  # Zayif yedek: GitHub'in kendi schedule'i (guvenilmez, saatlerce atlar - buna guvenme).
   schedule:
     - cron: '*/30 * * * *'
   workflow_dispatch:

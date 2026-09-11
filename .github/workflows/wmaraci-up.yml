@@ -41,7 +41,7 @@ jobs:
           WMARACI_PASSWORD:  ${{ secrets.WMARACI_PASSWORD }}   # 'email' alanina TELEFON gider (secret)
           TG_BOT_TOKEN:      ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID:        ${{ secrets.TG_CHAT_ID }}
-          WMARACI_THREAD_IDS: '714013'        # virgulle birden fazla: '714013,712916'
+          WMARACI_THREAD_IDS: '714739'        # itunes kodlariniz alinir (eski 714013 konusu silindi). Virgulle birden fazla: '714739,712916'
           WMARACI_BUMP_INTERVAL_MIN: '30'     # wmaraci limiti: ilan basina 30 dk (basari -> +31 dk tetik)
           WMARACI_RETRY_AFTER_MIN:   '5'      # GECICI hata (cloudflare/baglanti) -> ayni is icinde 5 dk sonra tekrar
           WMARACI_MAX_RETRIES:       '1'      # gecici hatada kac kez daha denensin (0 = kapali). Kalici (AUTH) hata beklemez.
